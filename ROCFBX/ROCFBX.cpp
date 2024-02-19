@@ -38,10 +38,10 @@ int main() {
             &compressedData[LZMA_PROPS_SIZE], &propSize,
             9, // Level: 0 to 9, where 9 is the highest compression.
             1 << 24, // Dictionary size: Use a larger dictionary size for better compression.
-            3, // lc: Number of literal context bits [0, 8].
+            8, // lc: Number of literal context bits [0, 8].
             0, // lp: Number of literal pos bits [0, 4].
             2, // pb: Number of pos bits [0, 4].
-            32, // fb: Number of fast bytes [5, 273].
+            64, // fb: Number of fast bytes [5, 273].
             1); // Number of threads: Adjust based on your hardware for potentially faster compression.
 
 
