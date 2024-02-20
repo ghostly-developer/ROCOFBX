@@ -1,8 +1,5 @@
-<<<<<<< HEAD
-# RO:CO=
-=======
+
 # RO:CO
->>>>>>> abacf19a58c9687faebf4e4288cbe59bea654415
 RO:CO is a open-source program which specializes in compressing .fbx files using the LZMA compression algorithm which was originally created by 7zip. Further tweaking to LZMA settings will be required in order to compress .fbx files, this will require further research in how the .fbx storage type works in order to achieve the most efficient and effective compression. I will most probably compile a research paper on my findings and how the program settings will have needed to adapt to these conditions.
 
 This program is designed to help all 3D artists reduce the file sizes of their project files without losing any model, scene or animation detail.
@@ -11,9 +8,9 @@ Very experimental version, no GUI only CLI.
 
 ### Features:
 - Compress .fbx into .lzma
-- Decompress .lzma to .fbx
+- Decompress .rco to .fbx
 - Compress .obj into .lzma
-- Decompress .lzma to .obj
+- Decompress .rco to .obj
 
 
 ### Compression Comparison (OBJ)
