@@ -1,85 +1,131 @@
-#include "LZMA/C/LzmaLib.h" 
+#include "LZMA/C/LzmaLib.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <string>
+#include <cstring> // For memcpy
+#include <filesystem> // C++17 filesystem library
+#include <thread>
 
-// Function to read the entire contents of a file into a vector
+namespace fs = std::filesystem;
+
 std::vector<unsigned char> readFile(const std::string& filename) {
-    std::ifstream file(filename, std::ios::binary);
-    return std::vector<unsigned char>((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    std::ifstream file(filename, std::ios::binary | std::ios::ate);
+    if (!file) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return {};
+    }
+
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    std::vector<unsigned char> buffer(size);
+    if (!file.read(reinterpret_cast<char*>(buffer.data()), size)) {
+        std::cerr << "Failed to read file: " << filename << std::endl;
+        return {};
+    }
+
+    return buffer;
 }
 
-// Function to write the data to a file
-void writeFile(const std::string& filename, const std::vector<unsigned char>& data) {
+bool writeFile(const std::string& filename, const std::vector<unsigned char>& data) {
     std::ofstream file(filename, std::ios::binary);
+    if (!file) {
+        std::cerr << "Failed to open file for writing: " << filename << std::endl;
+        return false;
+    }
+
     file.write(reinterpret_cast<const char*>(data.data()), data.size());
+    return true;
+}
+
+bool compressFile(const std::string& inputPath, const std::string& outputPath) {
+    auto inputFileData = readFile(inputPath);
+    if (inputFileData.empty()) return false;
+
+    size_t uncompressedSize = inputFileData.size();
+    size_t propSize = LZMA_PROPS_SIZE;
+    size_t compressedDataSize = inputFileData.size() * 2 + propSize; // Extra space for compression overhead
+    std::vector<unsigned char> compressedData(compressedDataSize + sizeof(size_t)); // Plus uncompressed size
+
+    int res = LzmaCompress(&compressedData[LZMA_PROPS_SIZE + sizeof(size_t)], &compressedDataSize,
+        inputFileData.data(), uncompressedSize,
+        &compressedData[0] + sizeof(size_t), &propSize,
+        9, 1 << 24, 3, 0, 2, 32, std::thread::hardware_concurrency());
+
+    if (res != SZ_OK) {
+        std::cerr << "Compression failed with code " << res << std::endl;
+        return false;
+    }
+
+    // Prepend uncompressed size to the compressed data
+    memcpy(compressedData.data(), &uncompressedSize, sizeof(size_t));
+
+    compressedData.resize(LZMA_PROPS_SIZE + compressedDataSize + sizeof(size_t)); // Adjust final size
+    return writeFile(outputPath, compressedData);
+}
+
+bool decompressFile(const std::string& inputPath, const std::string& outputPath) {
+    auto inputFileData = readFile(inputPath);
+    if (inputFileData.empty()) return false;
+
+    size_t uncompressedSize = 0;
+    memcpy(&uncompressedSize, inputFileData.data(), sizeof(size_t));
+
+    std::vector<unsigned char> decompressedData(uncompressedSize);
+    size_t destLen = uncompressedSize;
+    size_t srcLen = inputFileData.size() - LZMA_PROPS_SIZE - sizeof(size_t);
+
+    int res = LzmaUncompress(decompressedData.data(), &destLen,
+        inputFileData.data() + LZMA_PROPS_SIZE + sizeof(size_t), &srcLen,
+        inputFileData.data() + sizeof(size_t), LZMA_PROPS_SIZE);
+
+    if (res != SZ_OK) {
+        std::cerr << "Decompression failed with code " << res << std::endl;
+        return false;
+    }
+
+    decompressedData.resize(destLen); // Ensure vector size matches decompressed data size
+    return writeFile(outputPath, decompressedData);
 }
 
 int main() {
-    std::cout << "Choose an option:\n1. Compress\n2. Decompress\nOption: ";
-    int option;
-    std::cin >> option;
-    std::cin.ignore(); // Ignore newline character left in the input buffer
+    std::cout << "Enter operation (compress or decompress): ";
+    std::string operation;
+    std::cin >> operation;
 
-    std::string inputFilename, outputFilename;
-    std::cout << "Enter the path to the input file: ";
-    std::getline(std::cin, inputFilename);
+    // Consume any newline characters left in the input buffer
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-    std::vector<unsigned char> inputFileData = readFile(inputFilename);
+    fs::path inputFilePath, outputFilePath;
+    std::cout << "Enter input filename (with extension): ";
 
-    if (option == 1) { // Compression
-        outputFilename = inputFilename + ".lzma";
-        std::vector<unsigned char> compressedData(inputFileData.size() * 2); // Allocation for compressed data
+    // Use getline to read the path, allowing spaces to be included
+    std::string inputPath;
+    std::getline(std::cin, inputPath);
+    inputFilePath = inputPath;
 
-        size_t propSize = LZMA_PROPS_SIZE;
-        size_t compressedDataSize = compressedData.size();
-        int res = LzmaCompress(&compressedData[0], &compressedDataSize, &inputFileData[0], inputFileData.size(),
-            &compressedData[LZMA_PROPS_SIZE], &propSize,
-            9, // Level: 0 to 9, where 9 is the highest compression.
-            1 << 24, // Dictionary size: Use a larger dictionary size for better compression.
-            8, // lc: Number of literal context bits [0, 8].
-            0, // lp: Number of literal pos bits [0, 4].
-            2, // pb: Number of pos bits [0, 4].
-            64, // fb: Number of fast bytes [5, 273].
-            1); // Number of threads: Adjust based on your hardware for potentially faster compression.
-
-
-        if (res != SZ_OK) {
-            std::cerr << "Compression failed with code " << res << std::endl;
+    if (operation == "compress") {
+        std::cout << "Compressing File..." << std::endl;
+        outputFilePath = inputFilePath;
+        outputFilePath += ".lzma";
+        if (!compressFile(inputFilePath.string(), outputFilePath.string())) {
+            std::cerr << "Compression operation failed." << std::endl;
             return 1;
         }
-
-        compressedData.resize(compressedDataSize + LZMA_PROPS_SIZE);
-        writeFile(outputFilename, compressedData);
-        std::cout << "Compression completed successfully.\n";
     }
-    else if (option == 2) { // Decompression
-        outputFilename = inputFilename.substr(0, inputFilename.size() - 5); // Assuming the original file has a .lzma extension
-        size_t uncompressedSize = inputFileData.size() * 20; // Estimate the uncompressed size (needs adjustment based on your data)
-        std::vector<unsigned char> decompressedData(uncompressedSize);
-
-        size_t destLen = decompressedData.size();
-        size_t srcLen = inputFileData.size() - LZMA_PROPS_SIZE;
-        int res = LzmaUncompress(&decompressedData[0], &destLen,
-            &inputFileData[LZMA_PROPS_SIZE], &srcLen,
-            &inputFileData[0], LZMA_PROPS_SIZE);
-
-        if (res != SZ_OK) {
-            std::cerr << "Decompression failed with code " << res << std::endl;
+    else if (operation == "decompress") {
+        outputFilePath = inputFilePath;
+        outputFilePath.replace_extension(""); // Removes .lzma and assumes the original extension was correct
+        if (!decompressFile(inputFilePath.string(), outputFilePath.string())) {
+            std::cerr << "Decompression operation failed." << std::endl;
             return 1;
         }
-
-        decompressedData.resize(destLen);
-        writeFile(outputFilename, decompressedData);
-        std::cout << "Decompression completed successfully.\n";
     }
     else {
-        std::cerr << "Invalid option selected." << std::endl;
+        std::cerr << "Invalid operation selected." << std::endl;
         return 1;
     }
 
-    std::cout << "Output file: " << outputFilename << std::endl;
-
+    std::cout << "Operation completed successfully. Output file: " << outputFilePath << std::endl;
     return 0;
 }
