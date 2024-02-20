@@ -8,10 +8,21 @@ Very experimental version, no GUI only CLI.
 ### Features:
 - Compress .fbx into .lzma
 - Decompress .lzma to .fbx
+- Compress .obj into .lzma
+- Decompress .lzma to .obj
+
+
+### Compression Comparison (OBJ)
+- Original: 202mb
+- ZIP Compression: 60.8mb 
+- RAR Compression: 58.9mb
+- CO-OBJ LZMA: 46.4mb
 
 ### Compression Comparison (FBX)
 - Original: 12.1mb
 - ZIP Compression: 11.2mb (8% less)
 - CO-FBX LZMA: 10.8mb (11% less)
+
+
 
 These may seem very minor improvements but changes will be made and more file-types will be supported.
