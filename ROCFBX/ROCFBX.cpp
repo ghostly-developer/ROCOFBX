@@ -50,7 +50,7 @@ bool compressFile(const std::string& inputPath, const std::string& outputPath) {
     int res = LzmaCompress(&compressedData[LZMA_PROPS_SIZE + sizeof(size_t)], &compressedDataSize,
         inputFileData.data(), uncompressedSize,
         &compressedData[0] + sizeof(size_t), &propSize,
-        9, 1 << 24, 3, 0, 2, 32, std::thread::hardware_concurrency());
+        9, 1 << 24, 8, 0, 2, 32, std::thread::hardware_concurrency());
 
     if (res != SZ_OK) {
         std::cerr << "Compression failed with code " << res << std::endl;
@@ -107,7 +107,7 @@ int main() {
     if (operation == "compress") {
         std::cout << "Compressing File..." << std::endl;
         outputFilePath = inputFilePath;
-        outputFilePath += ".lzma";
+        outputFilePath += ".rco";
         if (!compressFile(inputFilePath.string(), outputFilePath.string())) {
             std::cerr << "Compression operation failed." << std::endl;
             return 1;
@@ -115,7 +115,7 @@ int main() {
     }
     else if (operation == "decompress") {
         outputFilePath = inputFilePath;
-        outputFilePath.replace_extension(""); // Removes .lzma and assumes the original extension was correct
+        outputFilePath.replace_extension(""); // Removes .rco and assumes the original extension was correct
         if (!decompressFile(inputFilePath.string(), outputFilePath.string())) {
             std::cerr << "Decompression operation failed." << std::endl;
             return 1;
